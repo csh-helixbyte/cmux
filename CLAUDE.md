@@ -1,5 +1,18 @@
 # cmux agent notes
 
+## This is a fork
+
+`origin` is the user's own fork, `csh-helixbyte/cmux`. There is no upstream remote, no reviewer, and no shared review process.
+
+Ship by merging into `main` and pushing to `origin`. Do not open a pull request. Work on a branch, dogfood the tagged build, get the user's approval, then:
+
+```bash
+git checkout main && git merge <branch> && git push origin main
+git branch -d <branch>
+```
+
+Several skills in `skills/` still describe a PR flow with review bots and required GitHub checks. Their technical content still applies; the PR mechanics do not. Take the branch-merge-push path instead, and never wait on a check that only runs against a pull request.
+
 ## Setup
 
 `./scripts/setup.sh` initializes submodules, builds GhosttyKit, and installs the pbxproj normalization pre-commit hook.
@@ -40,7 +53,7 @@ CMUX_TAG=<tag> scripts/cmux-debug-cli.sh list-workspaces
 CMUX_TAG=<tag> scripts/cmux-debug-cli.sh send --workspace workspace:1 --surface surface:1 "echo ok"
 ```
 
-The helper refuses to run without `CMUX_TAG`, targets `/tmp/cmux-debug-<tag>.sock`, and uses the matching tagged CLI from DerivedData. It scrubs ambient cmux terminal context (`CMUX_SOCKET`, `CMUX_SOCKET_PASSWORD`, workspace/surface/tab/panel IDs, cmuxd socket, debug log), then sets `CMUX_SOCKET_PATH`, `CMUX_BUNDLE_ID`, and `CMUX_BUNDLED_CLI_PATH` for the tag.
+The helper refuses to run without `CMUX_TAG`, targets `/tmp/cmux-debug-<tag>.sock`, uses the matching tagged CLI from DerivedData, and scrubs the ambient cmux terminal context so a command cannot leak onto the user's main app.
 
 ## iOS builds open on the iPhone by default
 
@@ -56,17 +69,19 @@ If the iPhone is unreachable at build time, the reload still completes: the sign
 
 ## Regression test commits
 
-Two commits, so CI proves the test catches the bug: commit 1 adds the failing test only (CI red), commit 2 adds the fix (CI green). This is visible in the PR Commits tab.
+Two commits, so the history proves the test catches the bug: commit 1 adds the failing test only, commit 2 adds the fix. Run the test at commit 1 and confirm it fails before writing the fix — that failure is the evidence, and on a fork nothing else will produce it.
 
 ## First pass, then dogfood
 
-A first pass ends when the change is implemented, the tagged build succeeded on the pushed HEAD, focused tests ran, and the PR is open (for `web/` PRs, also the live Vercel preview URL). Then hand off to the user. Do not sit in the main conversation watching CI or running speculative review passes after that point.
+A first pass ends when the change is implemented and committed on its branch, the tagged build succeeded on that branch's HEAD, and focused tests ran. Then hand off to the user. Do not open a pull request, and do not run speculative review passes after that point.
 
-Do not launch a background review agent (`$autoreview`, `codex review`, `claude review`, or a judge loop) by default. Second-model review is explicit user opt-in in the current conversation; an implementation request, open PR, CI failure, closeout, or handoff is not that opt-in. Let required GitHub checks and the automatic review bots run asynchronously, then return to address only concrete check failures and actionable findings before merge.
+Do not launch a background review agent (`$autoreview`, `codex review`, `claude review`, or a judge loop) by default. Second-model review is explicit user opt-in in the current conversation; an implementation request, a finished branch, a closeout, or a handoff is not that opt-in.
 
-The main agent owns dogfood, approval, mergeability, and every pushed fix. Merging app/runtime/UI changes requires the user's explicit approval after dogfood; if a fix changes runtime behavior mid-dogfood, rebuild the tag and re-notify, since the earlier verdict covers only the build the user tested.
+The main agent owns dogfood, approval, and every pushed fix. Merging app/runtime/UI changes into `main` requires the user's explicit approval after dogfood, because the push to `origin/main` is what ships them. If a fix changes runtime behavior mid-dogfood, rebuild the tag and re-notify, since the earlier verdict covers only the build the user tested.
 
-Notify through `cmux notify` so the user can leave and return. Handoff: `--title "Dogfood ready: <short task>" --subtitle "<branch> · <tag>" --body "Was: <prior bad behavior>. Now: <expected behavior>. <concrete check>. PR: <pr-url>"`. Later closeout notifications use `"CI green: <branch>"` or `"CI blocked: <branch>"` with a one-line cause and the next decision. Titles carry outcome and branch, bodies carry the single next action. Skip notify if there is no cmux socket.
+Size written output to the change. Commit messages, handoff notes, and docs state what changed, why, and how to check it. Skip restating the diff, recapping your own process, or adding summary sections that repeat the paragraph above them.
+
+Notify through `cmux notify` so the user can leave and return. Handoff: `--title "Dogfood ready: <short task>" --subtitle "<branch> · <tag>" --body "Was: <prior bad behavior>. Now: <expected behavior>. <concrete check>."`. Later closeout notifications use `"Merged: <branch>"` or `"Blocked: <branch>"` with a one-line cause and the next decision. Titles carry outcome and branch, bodies carry the single next action. Skip notify if there is no cmux socket.
 
 ## Pitfalls
 
@@ -80,9 +95,9 @@ Each of these has full detail in the skill named in parentheses.
 - **Submodule safety** (`cmux-ghostty`): push the submodule commit to its remote `main` before committing the pointer in the parent repo. Never commit on a detached HEAD. Verify with `git merge-base --is-ancestor HEAD origin/main`.
 - **Localize every user-facing string** (`cmux-localization`): `String(localized:)` with keys in `Resources/Localizable.xcstrings`, plus every web message catalog (`web/messages/en.json`, `web/messages/ja.json`). A localization audit is required for any UI, Settings, menu, schema, docs, or help-text change, and the handoff must state what was audited.
 - **Shortcut policy** (`cmux-keyboard-shortcuts`): every new cmux-owned shortcut goes in `KeyboardShortcutSettings`, is editable in Settings, is supported in `~/.config/cmux/cmux.json`, and is documented.
-- **Test wiring** (`cmux-testing`): a `.swift` file in `cmuxTests/` without a `PBXFileReference` + `PBXSourcesBuildPhase` entry is silently skipped, and both `xcodebuild test` and bot reviews pass with "Executed 0 tests". `workflow-guard-tests` runs `./scripts/lint-pbxproj-test-wiring.sh` to catch it.
+- **Test wiring** (`cmux-testing`): a `.swift` file in `cmuxTests/` without a `PBXFileReference` + `PBXSourcesBuildPhase` entry is silently skipped, and `xcodebuild test` still passes with "Executed 0 tests". `workflow-guard-tests` runs `./scripts/lint-pbxproj-test-wiring.sh` to catch it.
 - **SPM package groups** (`cmux-architecture`): packages live under `Packages/{Shared,iOS,macOS}/<pkg>` and the workspace mirrors that folder shape. To move one, `git mv` the directory then `python3 scripts/check-workspace-package-groups.py --write`. Never hand-edit workspace group membership.
-- **Do not gitignore cmux-owned `Package.resolved`.** SwiftPM resolution changes must show in PR diffs; package-local lockfiles are not replaced by the root one. `python3 scripts/check-package-resolved-policy.py` fails on drift.
+- **Do not gitignore cmux-owned `Package.resolved`.** SwiftPM resolution changes must show in the commit diff; package-local lockfiles are not replaced by the root one. `python3 scripts/check-package-resolved-policy.py` fails on drift.
 - **"Feature flag" means a remote PostHog runtime flag.** Implement through `CmuxFeatureFlags` with a PostHog key, explicit unavailable fallback, registry metadata, live update behavior, and focused tests. A local override may support dogfood but must not be the production control plane.
 - **Foundation, SwiftUI, AttributeGraph, and WebKit semantics change between macOS major versions.** `URL(fileURLWithPath: "/").deletingLastPathComponent().path` returns `"/.."` on macOS 14 and 15 but `"/"` on macOS 26 (https://github.com/manaflow-ai/cmux/issues/4529); CI and maintainer machines were all on the fixed side while every reporter was on the broken side. Test on the reporter's macOS before declaring a repro disproven. AWS M4 Pro builders (`aws-m4pro-1..6`) run macOS 15.7.4.
 
@@ -96,16 +111,6 @@ When a user says tests missed a bug, add behavior-level coverage around the exac
 
 ## Skills
 
-Detailed contributor rules live in `skills/`. Use the task-specific skill before changing that area.
+Detailed contributor rules live in `skills/`, exposed to the Skill tool through the symlinks in `.claude/skills/`. Load the task-specific skill before changing that area; the pitfalls above name the relevant one.
 
-- `cmux-dev-workflow`: setup, tagged reloads, Xcode project normalization, sidebar extension tagging, build isolation.
-- `cmux-architecture`: package boundaries, file/API discipline, testability, Swift concurrency.
-- `cmux-backend`: backend TypeScript, Effect, Cloud VM control plane, provider secrets, Postgres and migrations.
-- `cmux-billing`: Stripe checkout, entitlements, webhooks, pricing dev stack, live provisioning.
-- `cmux-debugging`: debug event log, Debug menu, runtime pitfalls, typing-sensitive paths, SwiftUI list boundaries.
-- `cmux-localization`: user-facing strings, localization files, shortcut text, localization audit.
-- `cmux-testing`: regression policy, Swift Testing, test quality, test wiring, local vs CI validation.
-- `cmux-socket-policy`: socket command threading and focus preservation.
-- `cmux-shared-behavior`: shared action paths for multi-entrypoint behavior and optimistic updates.
-- `cmux-ghostty`: Ghostty submodule and GhosttyKit workflow.
-- `cmux-release`: release, version bump, changelog, pretag guard, release assets.
+Do not restate the skill catalog here. The harness already lists every installed skill with its own description, and a second hand-maintained list drifts: a skill that exists in `skills/` but has no symlink in `.claude/skills/` cannot be loaded at all, and no list in this file will tell you that.
