@@ -209,7 +209,9 @@ enum FocusFlashCurve: Equatable {
 
 enum PanelOverlayRingMetrics {
     static let inset: CGFloat = 2
-    static let cornerRadius: CGFloat = 6
+    /// Tracks the card radius so the ring sits concentric inside the panel's
+    /// corner rather than cutting across it.
+    static var cornerRadius: CGFloat { FloatingPanelMetrics.ringCornerRadius }
     static let lineWidth: CGFloat = 2.5
 
     static func pathRect(in bounds: CGRect) -> CGRect {

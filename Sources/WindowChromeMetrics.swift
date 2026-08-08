@@ -1,3 +1,5 @@
+import AppKit
+import CmuxAppKitSupportUI
 import CmuxFoundation
 import CoreGraphics
 
@@ -12,6 +14,95 @@ enum WindowChromeMetrics {
 
     static func clampedTitlebarHeight(_ height: CGFloat) -> CGFloat {
         max(minimumTitlebarHeight, min(maximumTitlebarHeight, height))
+    }
+}
+
+/// Layout tokens for the floating-panel window look: the sidebar, the terminal
+/// panes, and the browser sit on a recessed ground as separate raised cards.
+///
+/// Every gap here is produced by layout — window-edge padding, split divider
+/// thickness, tab-strip spacing — never by a decorative modifier on an ancestor.
+/// `TerminalWindowPortal.effectiveAnchorFrameInWindow` reads ancestor *bounds*
+/// and never masks, so a `.clipShape` on a parent is invisible to it and the
+/// hosted terminal surface would paint straight over the gutter.
+///
+/// Rounding, by contrast, is only ever a layer property on the hosted surface
+/// plus a matching radius on the SwiftUI pane background. It involves no frame
+/// math at all.
+enum FloatingPanelMetrics {
+    /// Window edge to panel.
+    static let outerInset: CGFloat = 10
+
+    /// Between panels. Doubles as the split divider thickness, which is what
+    /// makes the portal follow the gap for free — the anchor frames shrink.
+    ///
+    /// Must stay inside Bonsplit's `TabBarMetrics.maximumDividerThickness` (12)
+    /// or the clamp would silently shrink the gutter below the painted layout.
+    static let gutter: CGFloat = 8
+
+    static let cornerRadius: CGFloat = 10
+    static let edgeLineWidth: CGFloat = 1
+
+    static let tabStripHorizontalInset: CGFloat = 8
+    static let tabStripBottomGap: CGFloat = 6
+    static let tabSpacing: CGFloat = 2
+    static let tabCornerRadius: CGFloat = 7
+
+    /// Focus/notification ring radius. The ring is drawn inset from the card
+    /// edge, so it must use a correspondingly smaller radius or its corners cut
+    /// across the card's own rounding instead of sitting concentric inside it.
+    static var ringCornerRadius: CGFloat {
+        max(0, cornerRadius - PanelOverlayRingMetrics.inset)
+    }
+}
+
+/// Colors for the floating-panel look, all derived from the active terminal
+/// theme rather than a fixed palette, so every Ghostty theme keeps working.
+///
+/// Two tones only: the card fill is the terminal background, unchanged, and the
+/// ground is that same fill pushed away from the viewer.
+@MainActor
+enum FloatingPanelChrome {
+    private static let resolver = WindowChromeColorResolver()
+
+    /// The recessed ground the cards sit on: window edges, gutters, and the
+    /// band behind the detached tab strip.
+    static func groundColor(surface: NSColor = GhosttyBackgroundTheme.currentColor()) -> NSColor {
+        resolver.recessedGroundColor(forSurface: surface)
+    }
+
+    /// The 1px outline around a card. Same color the flat layout used for its
+    /// straight hairlines, drawn as a rounded stroke instead.
+    static func cardEdgeColor(surface: NSColor = GhosttyBackgroundTheme.currentColor()) -> NSColor {
+        resolver.separatorColor(forChromeBackground: surface)
+    }
+
+    static func groundHex(surface: NSColor = GhosttyBackgroundTheme.currentColor()) -> String {
+        hexString(groundColor(surface: surface))
+    }
+
+    static func cardFillHex(surface: NSColor = GhosttyBackgroundTheme.currentColor()) -> String {
+        hexString(surface)
+    }
+
+    /// `#RRGGBBAA`, the form Bonsplit's chrome color knobs parse.
+    static func hexString(_ color: NSColor) -> String {
+        let srgb = color.usingColorSpace(.sRGB) ?? color
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        srgb.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        func channel(_ value: CGFloat) -> Int {
+            Int((min(1, max(0, value)) * 255).rounded())
+        }
+        return String(
+            format: "#%02X%02X%02X%02X",
+            channel(red),
+            channel(green),
+            channel(blue),
+            channel(alpha)
+        )
     }
 }
 

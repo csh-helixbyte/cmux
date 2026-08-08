@@ -26,6 +26,73 @@ public struct WindowChromeColorResolver: Sendable {
         )
     }
 
+    /// Returns the recessed ground a raised panel of `surface` sits on.
+    ///
+    /// The ground is derived from the panel's own fill rather than a fixed hex,
+    /// so every terminal theme keeps working and the panel always reads as one
+    /// step nearer the viewer than the space around it.
+    ///
+    /// The luminance branch mirrors ``separatorColor(forChromeBackground:)``:
+    /// a dark surface is pulled proportionally toward black, a light surface is
+    /// stepped down by a fixed amount so a white panel lands on the familiar
+    /// light-gray ground instead of being crushed.
+    ///
+    /// A near-black surface has no room left below it. Rather than return a
+    /// ground indistinguishable from the panel — which would erase the gutters
+    /// entirely — the ground is lifted by a small fixed amount, so the boundary
+    /// stays visible on pure-black themes.
+    public func recessedGroundColor(forSurface surface: NSColor) -> NSColor {
+        let srgb = surface.usingColorSpace(.sRGB) ?? surface
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        srgb.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+
+        let isLight = relativeLuminance(srgb) > Self.lightSurfaceLuminanceThreshold
+
+        if isLight {
+            return NSColor(
+                srgbRed: clampedComponent(red - Self.lightSurfaceRecess),
+                green: clampedComponent(green - Self.lightSurfaceRecess),
+                blue: clampedComponent(blue - Self.lightSurfaceRecess),
+                alpha: alpha
+            )
+        }
+
+        let scale = 1 - Self.darkSurfaceRecessFraction
+        let largestChannel = max(red, max(green, blue))
+        // Proportional darkening runs out of room as the surface approaches
+        // black; below this point the step would be invisible.
+        guard largestChannel * Self.darkSurfaceRecessFraction >= Self.minimumRecessDelta else {
+            return NSColor(
+                srgbRed: clampedComponent(red + Self.nearBlackSurfaceLift),
+                green: clampedComponent(green + Self.nearBlackSurfaceLift),
+                blue: clampedComponent(blue + Self.nearBlackSurfaceLift),
+                alpha: alpha
+            )
+        }
+
+        return NSColor(
+            srgbRed: clampedComponent(red * scale),
+            green: clampedComponent(green * scale),
+            blue: clampedComponent(blue * scale),
+            alpha: alpha
+        )
+    }
+
+    /// Linear-luminance cutoff separating light from dark surfaces. `0.18`
+    /// corresponds to roughly mid-gray in sRGB.
+    private static let lightSurfaceLuminanceThreshold: CGFloat = 0.18
+    private static let lightSurfaceRecess: CGFloat = 0.06
+    private static let darkSurfaceRecessFraction: CGFloat = 0.45
+    private static let minimumRecessDelta: CGFloat = 0.012
+    private static let nearBlackSurfaceLift: CGFloat = 0.035
+
+    private func clampedComponent(_ value: CGFloat) -> CGFloat {
+        min(1.0, max(0.0, value))
+    }
+
     /// Returns `foreground` composited over `background` in sRGB.
     public func compositedColor(_ foreground: NSColor, over background: NSColor) -> NSColor {
         let foregroundColor = foreground.usingColorSpace(.sRGB) ?? foreground
