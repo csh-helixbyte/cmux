@@ -46,12 +46,10 @@ enum SidebarResizeInteraction {
         case trailing
 
         private var hitWidthBeforeDivider: CGFloat {
-            switch self {
-            case .leading:
-                return SidebarResizeInteraction.sidebarSideHitWidth
-            case .trailing:
-                return SidebarResizeInteraction.contentSideHitWidth
-            }
+            // Symmetric for both edges. The divider is no longer a shared edge
+            // between two panels — it is the centerline of the gutter between
+            // two cards, and neither card owns the space around it.
+            SidebarResizeInteraction.totalHitWidth / 2
         }
 
         func handleX(dividerX: CGFloat) -> CGFloat {
@@ -61,6 +59,17 @@ enum SidebarResizeInteraction {
         func hitRange(dividerX: CGFloat) -> ClosedRange<CGFloat> {
             let minX = handleX(dividerX: dividerX)
             return minX...(minX + SidebarResizeInteraction.totalHitWidth)
+        }
+
+        /// Centerline of the gutter separating the sidebar from the content
+        /// region, given the panel edge the sidebar's width resolves to.
+        func gutterCenterX(panelEdgeX: CGFloat) -> CGFloat {
+            switch self {
+            case .leading:
+                return panelEdgeX + (FloatingPanelMetrics.gutter / 2)
+            case .trailing:
+                return panelEdgeX - (FloatingPanelMetrics.gutter / 2)
+            }
         }
     }
 

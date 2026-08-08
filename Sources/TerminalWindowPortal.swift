@@ -322,7 +322,12 @@ final class WindowTerminalHostView: NSView {
             return false
         }
 
-        return SidebarResizeInteraction.Edge.leading.hitRange(dividerX: dividerX).contains(point.x)
+        // `dividerX` is the hosted content's leading edge; the draggable handle
+        // sits in the gutter just before it.
+        let gutterCenterX = SidebarResizeInteraction.Edge.leading.gutterCenterX(
+            panelEdgeX: dividerX - FloatingPanelMetrics.gutter
+        )
+        return SidebarResizeInteraction.Edge.leading.hitRange(dividerX: gutterCenterX).contains(point.x)
     }
 
     private func shouldPassThroughToTrailingSidebarResizer(
@@ -336,7 +341,10 @@ final class WindowTerminalHostView: NSView {
         // room a trailing sidebar occupies.
         let trailingGap = bounds.maxX - rightMostEdge - Self.contentRegionOuterInset
         guard trailingGap > Self.minimumVisibleLeadingContentWidth else { return false }
-        return SidebarResizeInteraction.Edge.trailing.hitRange(dividerX: rightMostEdge).contains(point.x)
+        let gutterCenterX = SidebarResizeInteraction.Edge.trailing.gutterCenterX(
+            panelEdgeX: rightMostEdge + FloatingPanelMetrics.gutter
+        )
+        return SidebarResizeInteraction.Edge.trailing.hitRange(dividerX: gutterCenterX).contains(point.x)
     }
 
     private func updateDividerCursor(at point: NSPoint) {

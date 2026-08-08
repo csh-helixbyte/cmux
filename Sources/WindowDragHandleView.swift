@@ -784,7 +784,11 @@ func minimalModeSidebarTitlebarControlsFrame(
             : max(0, contentBounds.maxY - hostHeight - topInset)
     }
     return NSRect(
-        x: MinimalModeSidebarTitlebarControlsMetrics.leadingInset(defaults: defaults),
+        // The leading inset is measured from the sidebar card's own edge, not
+        // from the window frame. In the floating layout the card starts one
+        // outer inset in, so the controls would otherwise straddle the ground.
+        x: FloatingPanelMetrics.outerInset
+            + MinimalModeSidebarTitlebarControlsMetrics.leadingInset(defaults: defaults),
         y: targetY,
         width: MinimalModeSidebarTitlebarControlsMetrics.hostWidth,
         height: hostHeight

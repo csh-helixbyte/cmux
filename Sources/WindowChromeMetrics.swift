@@ -1,7 +1,9 @@
 import AppKit
+import Bonsplit
 import CmuxAppKitSupportUI
 import CmuxFoundation
 import CoreGraphics
+import SwiftUI
 
 enum WindowChromeMetrics {
     static let sharedChromeBarHeight: CGFloat = 28
@@ -56,37 +58,65 @@ enum FloatingPanelMetrics {
     }
 }
 
+/// The floating-panel knobs handed to Bonsplit.
+///
+/// There are three injection sites — the workspace appearance, the docked split
+/// store, and the remote-tmux embedded configuration. They must agree, or
+/// docked and remote-tmux workspaces render a different layout from ordinary
+/// ones, so all three read these values instead of restating them.
+extension BonsplitConfiguration.Appearance {
+    static let floatingPanelPaneCornerRadius = FloatingPanelMetrics.cornerRadius
+    static let floatingPanelTabStripHorizontalInset = FloatingPanelMetrics.tabStripHorizontalInset
+    static let floatingPanelTabStripBottomGap = FloatingPanelMetrics.tabStripBottomGap
+    static let floatingPanelTabSpacing = FloatingPanelMetrics.tabSpacing
+    static let floatingPanelTabCornerRadius = FloatingPanelMetrics.tabCornerRadius
+    /// The pill carries the selection; an underline under a pill reads as debris.
+    static let floatingPanelShowsActiveTabIndicator = false
+    /// Inactive tabs are a dot and a label on the ground, with no separators.
+    static let floatingPanelShowsInactiveTabFill = false
+    /// The gutter between panes is the reserved divider band.
+    static let floatingPanelDividerThickness = FloatingPanelMetrics.gutter
+}
+
 /// Colors for the floating-panel look, all derived from the active terminal
 /// theme rather than a fixed palette, so every Ghostty theme keeps working.
 ///
 /// Two tones only: the card fill is the terminal background, unchanged, and the
 /// ground is that same fill pushed away from the viewer.
-@MainActor
 enum FloatingPanelChrome {
-    private static let resolver = WindowChromeColorResolver()
-
     /// The recessed ground the cards sit on: window edges, gutters, and the
     /// band behind the detached tab strip.
-    static func groundColor(surface: NSColor = GhosttyBackgroundTheme.currentColor()) -> NSColor {
-        resolver.recessedGroundColor(forSurface: surface)
+    ///
+    /// Takes the surface explicitly and stays nonisolated so the chrome-color
+    /// resolution that Bonsplit configuration runs off the main actor can use it.
+    nonisolated static func groundColor(surface: NSColor) -> NSColor {
+        WindowChromeColorResolver().recessedGroundColor(forSurface: surface)
     }
 
     /// The 1px outline around a card. Same color the flat layout used for its
     /// straight hairlines, drawn as a rounded stroke instead.
-    static func cardEdgeColor(surface: NSColor = GhosttyBackgroundTheme.currentColor()) -> NSColor {
-        resolver.separatorColor(forChromeBackground: surface)
+    nonisolated static func cardEdgeColor(surface: NSColor) -> NSColor {
+        WindowChromeColorResolver().separatorColor(forChromeBackground: surface)
     }
 
-    static func groundHex(surface: NSColor = GhosttyBackgroundTheme.currentColor()) -> String {
+    nonisolated static func groundHex(surface: NSColor) -> String {
         hexString(groundColor(surface: surface))
     }
 
-    static func cardFillHex(surface: NSColor = GhosttyBackgroundTheme.currentColor()) -> String {
-        hexString(surface)
+    // MARK: - Current Theme
+
+    @MainActor
+    static func groundColor() -> NSColor {
+        groundColor(surface: GhosttyBackgroundTheme.currentColor())
+    }
+
+    @MainActor
+    static func cardEdgeColor() -> NSColor {
+        cardEdgeColor(surface: GhosttyBackgroundTheme.currentColor())
     }
 
     /// `#RRGGBBAA`, the form Bonsplit's chrome color knobs parse.
-    static func hexString(_ color: NSColor) -> String {
+    nonisolated static func hexString(_ color: NSColor) -> String {
         let srgb = color.usingColorSpace(.sRGB) ?? color
         var red: CGFloat = 0
         var green: CGFloat = 0
@@ -103,6 +133,34 @@ enum FloatingPanelChrome {
             channel(blue),
             channel(alpha)
         )
+    }
+}
+
+/// Paints the recessed ground behind every floating panel, refreshing when the
+/// terminal theme changes.
+///
+/// Carries the terminal's own background opacity so a translucent theme keeps
+/// showing the window backdrop through the gutters instead of having the blur
+/// sealed off by an opaque fill.
+struct FloatingPanelGroundLayer: View {
+    @State private var groundColor: NSColor = FloatingPanelChrome.groundColor()
+    @State private var groundOpacity: Double = GhosttyApp.shared.defaultBackgroundOpacity
+
+    var body: some View {
+        Rectangle()
+            .fill(Color(nsColor: groundColor))
+            .opacity(WindowAppearanceSnapshot.clampedOpacity(groundOpacity))
+            .onAppear { refresh() }
+            .onReceive(
+                NotificationCenter.default.publisher(for: .ghosttyDefaultBackgroundDidChange)
+            ) { _ in
+                refresh()
+            }
+    }
+
+    private func refresh() {
+        groundColor = FloatingPanelChrome.groundColor()
+        groundOpacity = GhosttyApp.shared.defaultBackgroundOpacity
     }
 }
 

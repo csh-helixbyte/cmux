@@ -1723,7 +1723,13 @@ struct ContentView: View {
                 handle: .divider,
                 edge: .leading,
                 accessibilityIdentifier: "SidebarResizer",
-                dividerX: { totalWidth in min(max(width, 0), totalWidth) }
+                dividerX: { totalWidth in
+                    // The handle belongs in the gutter between the sidebar card
+                    // and the content region, not on the sidebar's own edge.
+                    SidebarResizeInteraction.Edge.leading.gutterCenterX(
+                        panelEdgeX: min(max(width, 0), totalWidth)
+                    )
+                }
             )
         }
     }
@@ -1733,7 +1739,11 @@ struct ContentView: View {
             handle: .explorerDivider,
             edge: .trailing,
             accessibilityIdentifier: "RightSidebarResizer",
-            dividerX: { totalWidth in totalWidth - rightSidebarWidth }
+            dividerX: { totalWidth in
+                SidebarResizeInteraction.Edge.trailing.gutterCenterX(
+                    panelEdgeX: totalWidth - rightSidebarWidth
+                )
+            }
         )
     }
 
@@ -1918,6 +1928,9 @@ struct ContentView: View {
         return HStack(spacing: 0) {
             terminalContentWithSidebarDropOverlay(appearance: appearance)
             rightSidebarPanelWithBackdrop(appearance: appearance)
+                // Gutter only when the panel is actually there. HStack spacing
+                // would leave the gap behind when the sidebar collapses to zero.
+                .padding(.leading, rightSidebarVisible ? FloatingPanelMetrics.gutter : 0)
         }
     }
 
@@ -1929,16 +1942,34 @@ struct ContentView: View {
         rightSidebarVisible ? fileExplorerWidth : 0
     }
 
+    /// Radius for a sidebar card.
+    ///
+    /// A preset that already asks for rounding keeps its own value; the presets
+    /// that resolve to `0` were drawn edge-to-edge, and in the floating layout
+    /// they become cards like every other panel.
+    private func sidebarCardCornerRadius(appearance: WindowAppearanceSnapshot) -> CGFloat {
+        let presetRadius = appearance.sidebarSettings.materialPolicy.cornerRadius
+        return presetRadius > 0 ? presetRadius : FloatingPanelMetrics.cornerRadius
+    }
+
     private func sidebarBackdropLayer(
         width: CGFloat,
         role: WindowBackdropRole,
         appearance: WindowAppearanceSnapshot
     ) -> some View {
-        WindowBackdropLayer(role: role, snapshot: appearance)
+        let cornerRadius = sidebarCardCornerRadius(appearance: appearance)
+        return WindowBackdropLayer(role: role, snapshot: appearance)
             .ignoresSafeArea()
             .frame(width: width)
-            .clipShape(RoundedRectangle(cornerRadius: appearance.sidebarSettings.materialPolicy.cornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .clipped()
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(
+                        Color(nsColor: FloatingPanelChrome.cardEdgeColor()),
+                        lineWidth: FloatingPanelMetrics.edgeLineWidth
+                    )
+            )
             .allowsHitTesting(false)
     }
 
@@ -2259,10 +2290,20 @@ struct ContentView: View {
 
     private func syncTrafficLightInset(isMinimalMode: Bool? = nil) {
         let resolvedIsMinimalMode = isMinimalMode ?? currentIsMinimalMode
+        // With the sidebar hidden the traffic lights sit over the first pane's
+        // tab strip. That strip now starts one outer inset in from the window
+        // frame, so the reserved lane has to shrink by the same amount or the
+        // first tab is pushed too far right.
         let inset: CGFloat = (resolvedIsMinimalMode && !sidebarState.isVisible && !isFullScreen)
-            ? CGFloat(titlebarDebugChromeSnapshot.trafficLightTabBarLeadingInset)
+            ? max(
+                0,
+                CGFloat(titlebarDebugChromeSnapshot.trafficLightTabBarLeadingInset)
+                    - FloatingPanelMetrics.outerInset
+            )
             : 0
         tabManager.syncWorkspaceTabBarLeadingInset(inset)
+        // Pure-SwiftUI inset changes emit no portal callback of their own.
+        schedulePortalGeometrySynchronize()
     }
 
     private func handleWorkspacePresentationModeChange(isMinimalMode: Bool) {
@@ -2582,7 +2623,8 @@ struct ContentView: View {
                     terminalContentWithRightSidebarPanel(appearance: appearance)
                         .modifier(SidebarWidthLeadingPaddingModifier(
                             layout: sidebarLayout,
-                            enabled: sidebarState.isVisible
+                            enabled: sidebarState.isVisible,
+                            gutter: FloatingPanelMetrics.gutter
                         ))
                     SidebarWidthReader(layout: sidebarLayout) { width in
                         sidebarPanelWithBackdrop(appearance: appearance)
@@ -2603,11 +2645,13 @@ struct ContentView: View {
                         terminalContentWithSidebarDropOverlay(appearance: appearance)
                             .modifier(SidebarWidthLeadingPaddingModifier(
                                 layout: sidebarLayout,
-                                enabled: sidebarState.isVisible
+                                enabled: sidebarState.isVisible,
+                                gutter: FloatingPanelMetrics.gutter
                             ))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .layoutPriority(1)
                         rightSidebarPanelWithBackdrop(appearance: appearance)
+                            .padding(.leading, rightSidebarVisible ? FloatingPanelMetrics.gutter : 0)
                     }
                     if sidebarState.isVisible {
                         sidebarPanelWithBackdrop(appearance: appearance)
@@ -2640,6 +2684,14 @@ struct ContentView: View {
                             .zIndex(1000)
                     }
                 }
+                // The one place the window-edge gap is produced. It is real
+                // layout, so the hosted-surface anchor frames shrink with it and
+                // the portal follows for free. A decorative inset on an ancestor
+                // would not — `effectiveAnchorFrameInWindow` reads bounds.
+                //
+                // The value is a constant, never animated: an oscillating inset
+                // would reopen the documented non-convergent portal layout storm.
+                .padding(FloatingPanelMetrics.outerInset)
         )
     }
 
@@ -2677,6 +2729,13 @@ struct ContentView: View {
         var view = AnyView(
             ZStack(alignment: .topLeading) {
                 WindowBackdropLayer(role: .windowRoot, snapshot: appearance)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+
+                // The recessed ground the cards sit on: window edges, gutters,
+                // and the band behind the detached tab strip. Derived from the
+                // terminal background so it tracks the active Ghostty theme.
+                FloatingPanelGroundLayer()
                     .ignoresSafeArea()
                     .allowsHitTesting(false)
 

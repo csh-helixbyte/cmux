@@ -50,8 +50,12 @@ struct SidebarWidthFrameModifier: ViewModifier {
 struct SidebarWidthLeadingPaddingModifier: ViewModifier {
     @ObservedObject var layout: SidebarLayoutModel
     let enabled: Bool
+    /// Gap between the sidebar card and the content region. Zero when the
+    /// sidebar is hidden — the content region's own outer inset already
+    /// accounts for the window edge in that case.
+    var gutter: CGFloat = 0
 
     func body(content: Content) -> some View {
-        content.padding(.leading, enabled ? layout.width : 0)
+        content.padding(.leading, enabled ? layout.width + gutter : 0)
     }
 }

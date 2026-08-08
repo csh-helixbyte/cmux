@@ -255,26 +255,38 @@ final class SidebarWidthPolicyTests: XCTestCase {
         )
     }
 
-    func testLeadingSidebarResizeRangeFavorsSidebarSide() {
+    // The divider is no longer a shared edge between two panels. It is the
+    // centerline of the gutter between two cards, so the hit range is centered
+    // on it rather than reaching further into the sidebar than into content.
+
+    func testLeadingSidebarResizeRangeIsCenteredOnTheDivider() {
         let range = SidebarResizeInteraction.Edge.leading.hitRange(dividerX: 200)
 
-        XCTAssertEqual(range.lowerBound, 194, accuracy: 0.001)
-        XCTAssertEqual(range.upperBound, 204, accuracy: 0.001)
+        XCTAssertEqual(range.lowerBound, 195, accuracy: 0.001)
+        XCTAssertEqual(range.upperBound, 205, accuracy: 0.001)
         XCTAssertTrue(range.contains(196))
-        XCTAssertTrue(range.contains(202))
-        XCTAssertFalse(range.contains(193.9))
-        XCTAssertFalse(range.contains(204.1))
+        XCTAssertTrue(range.contains(204))
+        XCTAssertFalse(range.contains(194.9))
+        XCTAssertFalse(range.contains(205.1))
     }
 
-    func testTrailingSidebarResizeRangeFavorsSidebarSide() {
+    func testTrailingSidebarResizeRangeIsCenteredOnTheDivider() {
         let range = SidebarResizeInteraction.Edge.trailing.hitRange(dividerX: 680)
 
-        XCTAssertEqual(range.lowerBound, 676, accuracy: 0.001)
-        XCTAssertEqual(range.upperBound, 686, accuracy: 0.001)
-        XCTAssertTrue(range.contains(678))
+        XCTAssertEqual(range.lowerBound, 675, accuracy: 0.001)
+        XCTAssertEqual(range.upperBound, 685, accuracy: 0.001)
+        XCTAssertTrue(range.contains(676))
         XCTAssertTrue(range.contains(684))
-        XCTAssertFalse(range.contains(675.9))
-        XCTAssertFalse(range.contains(686.1))
+        XCTAssertFalse(range.contains(674.9))
+        XCTAssertFalse(range.contains(685.1))
+    }
+
+    func testGutterCenterSitsBetweenThePanelEdgeAndTheContentRegion() {
+        let leadingCenter = SidebarResizeInteraction.Edge.leading.gutterCenterX(panelEdgeX: 200)
+        XCTAssertEqual(leadingCenter, 200 + FloatingPanelMetrics.gutter / 2, accuracy: 0.001)
+
+        let trailingCenter = SidebarResizeInteraction.Edge.trailing.gutterCenterX(panelEdgeX: 680)
+        XCTAssertEqual(trailingCenter, 680 - FloatingPanelMetrics.gutter / 2, accuracy: 0.001)
     }
 }
 
