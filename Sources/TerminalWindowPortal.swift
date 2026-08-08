@@ -254,7 +254,11 @@ final class WindowTerminalHostView: NSView {
         return samples.contains { shouldPassThroughToChrome(at: $0, eventType: .cursorUpdate) }
     }
 
-    private func shouldPassThroughToSidebarResizer(at point: NSPoint) -> Bool {
+    // Internal rather than private as a test seam: this is the pointer-routing
+    // decision that the floating-panel outer inset breaks most easily, since it
+    // infers "is the sidebar showing?" from how close hosted content sits to the
+    // host's leading edge.
+    func shouldPassThroughToSidebarResizer(at point: NSPoint) -> Bool {
         // The sidebar resizer handle is implemented in SwiftUI. When terminals
         // are portal-hosted, this AppKit host can otherwise sit above the handle
         // and steal hover/mouse events.
