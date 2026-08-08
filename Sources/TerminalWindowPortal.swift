@@ -14,7 +14,19 @@ final class WindowTerminalHostView: NSView {
     private typealias DividerCursorKind = PortalDividerCursorKind
 
     override var isOpaque: Bool { false }
-    private static let sidebarLeadingEdgeEpsilon: CGFloat = 1
+    /// How close a hosted frame must sit to the content region's leading edge to
+    /// count as flush to it — meaning no sidebar is showing.
+    ///
+    /// The floating-panel layout insets every panel from the window frame, so a
+    /// raw epsilon of 1 would never match and the left gutter would be treated
+    /// as a sidebar divider with no sidebar present.
+    ///
+    /// Stored, not computed: this is read from the pointer hit-test path, which
+    /// also runs on every keystroke.
+    private static let sidebarLeadingEdgeEpsilon: CGFloat = FloatingPanelMetrics.outerInset + 1
+    /// Points between the content region and the window frame, excluded before
+    /// measuring how much room a trailing sidebar actually occupies.
+    private static let contentRegionOuterInset: CGFloat = FloatingPanelMetrics.outerInset
     private static let minimumVisibleLeadingContentWidth: CGFloat = 24
     private var cachedSidebarDividerX: CGFloat?
     private var sidebarDividerMissCount = 0
@@ -319,7 +331,10 @@ final class WindowTerminalHostView: NSView {
     ) -> Bool {
         let contentHostedViews = visibleHostedViews.filter { !$0.isRightSidebarDockSurface }
         guard let rightMostEdge = contentHostedViews.map(\.frame.maxX).max() else { return false }
-        let trailingGap = bounds.maxX - rightMostEdge
+        // Measure past the outer inset: with the floating layout no hosted frame
+        // reaches the window frame, so the raw gap always overstates how much
+        // room a trailing sidebar occupies.
+        let trailingGap = bounds.maxX - rightMostEdge - Self.contentRegionOuterInset
         guard trailingGap > Self.minimumVisibleLeadingContentWidth else { return false }
         return SidebarResizeInteraction.Edge.trailing.hitRange(dividerX: rightMostEdge).contains(point.x)
     }
