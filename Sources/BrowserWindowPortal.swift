@@ -1196,6 +1196,10 @@ final class WindowBrowserSlotView: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.masksToBounds = true
+        // Card rounding, matching the terminal surface. The existing
+        // `paneTopChromeHeight` offset composes with it unchanged.
+        layer?.cornerRadius = FloatingPanelMetrics.cornerRadius
+        layer?.cornerCurve = .continuous
         translatesAutoresizingMaskIntoConstraints = true
         autoresizingMask = []
 

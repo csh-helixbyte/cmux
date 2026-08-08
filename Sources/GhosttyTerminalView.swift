@@ -8500,6 +8500,12 @@ final class GhosttySurfaceScrollView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.masksToBounds = true
+        // Card rounding. This layer already masks to bounds, so adding a radius
+        // stays in the same compositing class instead of introducing offscreen
+        // rendering. Deliberately NOT on `GhosttyNSView`'s CAMetalLayer, whose
+        // `drawableSize` and `contentsScale` are rewritten on every resize tick.
+        layer?.cornerRadius = FloatingPanelMetrics.cornerRadius
+        layer?.cornerCurve = .continuous
 
         backgroundView.wantsLayer = true
         backgroundView.layer?.backgroundColor = NSColor.clear.cgColor
@@ -9345,6 +9351,11 @@ final class GhosttySurfaceScrollView: NSView {
         cutoutView.compositingFilter = sharedBackdropCutoutFilter
         cutoutView.layer?.backgroundColor = NSColor.white.cgColor
         cutoutView.layer?.isOpaque = true
+        // Match the card's rounding, or a rounded card sits over a square hole
+        // and the backdrop shows through at each corner.
+        cutoutView.layer?.cornerRadius = FloatingPanelMetrics.cornerRadius
+        cutoutView.layer?.cornerCurve = .continuous
+        cutoutView.layer?.masksToBounds = true
         addSubview(cutoutView, positioned: .below, relativeTo: backgroundView)
         sharedBackdropCutoutView = cutoutView
         return cutoutView

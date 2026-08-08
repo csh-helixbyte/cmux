@@ -43,8 +43,10 @@ extension DockSplitStore {
             // 46-54%), which reads as "the divider is stuck". Use a small
             // sidebar-appropriate minimum so panes stay resizable in both
             // orientations while still keeping a usable floor.
+            tabSpacing: BonsplitConfiguration.Appearance.floatingPanelTabSpacing,
             minimumPaneWidth: Self.minimumDockPaneSize,
             minimumPaneHeight: Self.minimumDockPaneSize,
+            dividerThickness: BonsplitConfiguration.Appearance.floatingPanelDividerThickness,
             dividerHitExpansion: PortalSplitDividerRegion.dividerHitExpansion,
             splitButtonBackdropEffect: Workspace.bonsplitSplitButtonBackdropEffect(),
             splitButtonTooltips: Workspace.currentSplitButtonTooltips(),
@@ -56,7 +58,13 @@ extension DockSplitStore {
                 renderingMode: renderingMode,
                 paneBorderColorHex: PaneChromeSettings.paneBorderColorHex()
             ),
-            usesSharedBackdrop: sharesWindowBackdrop
+            usesSharedBackdrop: sharesWindowBackdrop,
+            paneCornerRadius: BonsplitConfiguration.Appearance.floatingPanelPaneCornerRadius,
+            tabStripHorizontalInset: BonsplitConfiguration.Appearance.floatingPanelTabStripHorizontalInset,
+            tabStripBottomGap: BonsplitConfiguration.Appearance.floatingPanelTabStripBottomGap,
+            tabCornerRadius: BonsplitConfiguration.Appearance.floatingPanelTabCornerRadius,
+            showsActiveTabIndicator: BonsplitConfiguration.Appearance.floatingPanelShowsActiveTabIndicator,
+            showsInactiveTabFill: BonsplitConfiguration.Appearance.floatingPanelShowsInactiveTabFill
         )
     }
 }

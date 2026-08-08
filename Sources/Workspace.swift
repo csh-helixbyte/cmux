@@ -2975,13 +2975,23 @@ final class Workspace: Identifiable, ObservableObject {
             fallback: defaultBorderHex
         )
 
+        // The gutter between panes is the reserved split-divider band, painted
+        // with the recessed ground so it reads as the space the cards sit on.
+        let dividerColorHex = FloatingPanelChrome.groundHex(surface: backgroundColor)
+        // The selected tab is the card's handle, so it carries the card fill.
+        // The strip itself is transparent, which leaves the derived active-tab
+        // fill nothing to derive from — hence the explicit value.
+        let activeTabBackgroundHex = surfaceHex
+
         if sharesWindowBackdrop {
             return .init(
                 backgroundHex: surfaceHex,
                 tabBarBackgroundHex: "#00000000",
                 splitButtonBackdropHex: "#00000000",
                 paneBackgroundHex: "#00000000",
-                borderHex: borderHex
+                borderHex: borderHex,
+                dividerColorHex: dividerColorHex,
+                activeTabBackgroundHex: activeTabBackgroundHex
             )
         }
 
@@ -2993,10 +3003,15 @@ final class Workspace: Identifiable, ObservableObject {
             : "#00000000"
         return .init(
             backgroundHex: surfaceHex,
-            tabBarBackgroundHex: surfaceHex,
-            splitButtonBackdropHex: surfaceHex,
+            // Transparent so the strip floats on the ground, detached from the
+            // card below it. `backgroundHex` still carries the semantic surface,
+            // so text and hover colors keep deriving correctly.
+            tabBarBackgroundHex: "#00000000",
+            splitButtonBackdropHex: "#00000000",
             paneBackgroundHex: paneBackgroundHex,
-            borderHex: borderHex
+            borderHex: borderHex,
+            dividerColorHex: dividerColorHex,
+            activeTabBackgroundHex: activeTabBackgroundHex
         )
     }
 
@@ -3016,6 +3031,7 @@ final class Workspace: Identifiable, ObservableObject {
             configuredHex: paneBorderColorHex,
             fallback: defaultBorderHex
         )
+        let dividerColorHex = FloatingPanelChrome.groundHex(surface: backgroundColor)
 
         if sharesWindowBackdrop {
             return .init(
@@ -3023,7 +3039,9 @@ final class Workspace: Identifiable, ObservableObject {
                 tabBarBackgroundHex: "#00000000",
                 splitButtonBackdropHex: "#00000000",
                 paneBackgroundHex: "#00000000",
-                borderHex: borderHex
+                borderHex: borderHex,
+                dividerColorHex: dividerColorHex,
+                activeTabBackgroundHex: backgroundHex
             )
         }
 
@@ -3035,10 +3053,13 @@ final class Workspace: Identifiable, ObservableObject {
             : "#00000000"
         return .init(
             backgroundHex: backgroundHex,
-            tabBarBackgroundHex: backgroundHex,
-            splitButtonBackdropHex: backgroundHex,
+            // Transparent in every branch now: the strip floats on the ground.
+            tabBarBackgroundHex: "#00000000",
+            splitButtonBackdropHex: "#00000000",
             paneBackgroundHex: paneBackgroundHex,
-            borderHex: borderHex
+            borderHex: borderHex,
+            dividerColorHex: dividerColorHex,
+            activeTabBackgroundHex: backgroundHex
         )
     }
 
@@ -3050,7 +3071,9 @@ final class Workspace: Identifiable, ObservableObject {
             lhs.tabBarBackgroundHex == rhs.tabBarBackgroundHex &&
             lhs.splitButtonBackdropHex == rhs.splitButtonBackdropHex &&
             lhs.paneBackgroundHex == rhs.paneBackgroundHex &&
-            lhs.borderHex == rhs.borderHex
+            lhs.borderHex == rhs.borderHex &&
+            lhs.dividerColorHex == rhs.dividerColorHex &&
+            lhs.activeTabBackgroundHex == rhs.activeTabBackgroundHex
     }
 
     private static func bonsplitChromeColorsLogDescription(
@@ -3060,7 +3083,9 @@ final class Workspace: Identifiable, ObservableObject {
             "tabBarBg=\(colors.tabBarBackgroundHex ?? "nil") " +
             "splitBackdrop=\(colors.splitButtonBackdropHex ?? "nil") " +
             "paneBg=\(colors.paneBackgroundHex ?? "nil") " +
-            "border=\(colors.borderHex ?? "nil")"
+            "border=\(colors.borderHex ?? "nil") " +
+            "divider=\(colors.dividerColorHex ?? "nil") " +
+            "activeTab=\(colors.activeTabBackgroundHex ?? "nil")"
     }
 
     private static func bonsplitAppearance(
@@ -3082,12 +3107,20 @@ final class Workspace: Identifiable, ObservableObject {
         return BonsplitConfiguration.Appearance(
             tabBarHeight: WindowChromeMetrics.bonsplitTabBarHeight,
             tabTitleFontSize: tabTitleFontSize,
+            tabSpacing: BonsplitConfiguration.Appearance.floatingPanelTabSpacing,
+            dividerThickness: BonsplitConfiguration.Appearance.floatingPanelDividerThickness,
             dividerHitExpansion: PortalSplitDividerRegion.dividerHitExpansion,
             splitButtonBackdropEffect: Self.bonsplitSplitButtonBackdropEffect(),
             splitButtonTooltips: Self.currentSplitButtonTooltips(),
             enableAnimations: false,
             chromeColors: chromeColors,
-            usesSharedBackdrop: sharesWindowBackdrop
+            usesSharedBackdrop: sharesWindowBackdrop,
+            paneCornerRadius: BonsplitConfiguration.Appearance.floatingPanelPaneCornerRadius,
+            tabStripHorizontalInset: BonsplitConfiguration.Appearance.floatingPanelTabStripHorizontalInset,
+            tabStripBottomGap: BonsplitConfiguration.Appearance.floatingPanelTabStripBottomGap,
+            tabCornerRadius: BonsplitConfiguration.Appearance.floatingPanelTabCornerRadius,
+            showsActiveTabIndicator: BonsplitConfiguration.Appearance.floatingPanelShowsActiveTabIndicator,
+            showsInactiveTabFill: BonsplitConfiguration.Appearance.floatingPanelShowsInactiveTabFill
         )
     }
 
